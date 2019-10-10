@@ -228,6 +228,7 @@ if (COG_PLATFORM_FDO AND NOT COG_USE_WEBKITGTK)
     find_package(WaylandProtocols REQUIRED)
     add_wayland_protocol(cogplatform-fdo CLIENT xdg-shell)
     add_wayland_protocol(cogplatform-fdo CLIENT fullscreen-shell-unstable-v1)
+    add_wayland_protocol(cogplatform-fdo CLIENT linux-dmabuf-unstable-v1)
 
     install(TARGETS cogplatform-fdo
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
