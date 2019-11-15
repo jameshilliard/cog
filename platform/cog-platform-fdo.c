@@ -61,6 +61,8 @@ struct buffer {
     int32_t width;
     int32_t height;
     int fd;
+
+    struct wpe_svp_dmabuf_export* dmabuf_export;
 };
 
 
@@ -1247,6 +1249,10 @@ on_dmabuf_buffer_release (void* data, struct wl_buffer* buffer)
     struct buffer *data_buffer = data;
     if (data_buffer->fd >= 0)
         close(data_buffer->fd);
+
+    if (data_buffer->dmabuf_export)
+        wpe_svp_dmabuf_export_release(data_buffer->dmabuf_export);
+
     free (data_buffer);
 
     g_clear_pointer (&buffer, wl_buffer_destroy);
@@ -1321,7 +1327,7 @@ static const struct zwp_linux_buffer_params_v1_listener params_listener = {
 };
 
 static void
-on_svp_dmabuf_receiver_handle_dmabuf (void* data, uint32_t id, int fd, int32_t x, int32_t y, int32_t width, int32_t height, uint32_t stride)
+on_svp_dmabuf_receiver_handle_dmabuf (void* data, struct wpe_svp_dmabuf_export* dmabuf_export, uint32_t id, int fd, int32_t x, int32_t y, int32_t width, int32_t height, uint32_t stride)
 {
     if (fd < 0)
         return;
@@ -1363,6 +1369,8 @@ on_svp_dmabuf_receiver_handle_dmabuf (void* data, uint32_t id, int fd, int32_t x
 
     buffer->buffer = zwp_linux_buffer_params_v1_create_immed (params, width, height, BUFFER_FORMAT, 0);
     zwp_linux_buffer_params_v1_destroy (params);
+
+    buffer->dmabuf_export = dmabuf_export;
 
     wl_buffer_add_listener (buffer->buffer, &dmabuf_buffer_listener, buffer);
 
