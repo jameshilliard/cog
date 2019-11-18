@@ -1375,11 +1375,20 @@ on_svp_dmabuf_receiver_handle_dmabuf (void* data, struct wpe_svp_dmabuf_export* 
     wl_buffer_add_listener (buffer->buffer, &dmabuf_buffer_listener, buffer);
 
     wl_surface_attach (win_data.svp.wl_surface, buffer->buffer, 0, 0);
-    wl_surface_damage (win_data.svp.wl_surface, 0, 0, INT_MAX, INT_MAX);
+    wl_surface_damage (win_data.svp.wl_surface, 0, 0, buffer->width, buffer->height);
 
     struct wl_callback *callback = wl_surface_frame (win_data.svp.wl_surface);
     wl_callback_add_listener (callback, &dmabuf_frame_listener, NULL);
 
+    if (!win_data.svp.wl_subsurface) {
+        win_data.svp.wl_subsurface = wl_subcompositor_get_subsurface (wl_data.subcompositor,
+                                                                      win_data.svp.wl_surface,
+                                                                      win_data.wl_surface);
+
+        wl_subsurface_set_sync (win_data.svp.wl_subsurface);
+    }
+
+    wl_subsurface_set_position (win_data.svp.wl_subsurface, buffer->x, buffer->y);
     wl_surface_commit (win_data.svp.wl_surface);
 }
 
@@ -1543,21 +1552,13 @@ create_window (GError **error)
     win_data.wl_surface = wl_compositor_create_surface (wl_data.compositor);
     g_assert (win_data.wl_surface);
 
+    win_data.svp.wl_subsurface = NULL;
+
 #if HAVE_DEVICE_SCALING
     wl_surface_add_listener (win_data.wl_surface, &surface_listener, NULL);
 #endif /* HAVE_DEVICE_SCALING */
 
     win_data.svp.wl_surface = wl_compositor_create_surface (wl_data.compositor);
-    win_data.svp.wl_subsurface = wl_subcompositor_get_subsurface (wl_data.subcompositor,
-                                                                  win_data.svp.wl_surface,
-                                                                  win_data.wl_surface);
-
-    wl_subsurface_set_sync (win_data.svp.wl_subsurface);
-    wl_subsurface_set_position (win_data.svp.wl_subsurface, 0, 0);
-    wl_subsurface_place_above (win_data.svp.wl_subsurface, win_data.wl_surface);
-
-    wl_surface_commit (win_data.svp.wl_surface);
-    wl_surface_commit (win_data.wl_surface);
 
     if (wl_data.xdg_shell != NULL) {
         win_data.xdg_surface =
