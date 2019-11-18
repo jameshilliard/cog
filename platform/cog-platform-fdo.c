@@ -38,6 +38,11 @@
 #include "fullscreen-shell-unstable-v1-client.h"
 #include "linux-dmabuf-unstable-v1-client.h"
 
+#if COG_ENABLE_PROTECTED_CONTENT
+#include "weston-direct-display-client-protocol.h"
+#include "weston-content-protection-client-protocol.h"
+#endif
+
 #include <wpe/extensions/svp-dmabuf-receiver.h>
 
 #define DEFAULT_WIDTH  1024
@@ -95,6 +100,11 @@ static struct {
 
     struct wl_seat *seat;
 
+#if COG_ENABLE_PROTECTED_CONTENT
+    struct weston_direct_display_v1 *direct_display;
+    struct weston_content_protection *protection;
+#endif
+
 #if HAVE_DEVICE_SCALING
     struct output_metrics metrics[16];
 #endif /* HAVE_DEVICE_SCALING */
@@ -151,6 +161,9 @@ static struct {
     EGLSurface egl_surface;
 
     struct {
+#if COG_ENABLE_PROTECTED_CONTENT
+        struct weston_protected_surface *protected_surface;
+#endif
         struct wl_surface *wl_surface;
         struct wl_subsurface *wl_subsurface;
     } svp;
@@ -542,6 +555,18 @@ registry_global (void               *data,
                                          name,
                                          &wl_seat_interface,
                                          version);
+#if COG_ENABLE_PROTECTED_CONTENT
+    } else if (strcmp (interface, "weston_direct_display_v1") == 0) {
+        wl_data.direct_display = wl_registry_bind (registry,
+                                                   name,
+                                                   &weston_direct_display_v1_interface,
+                                                   1);
+    } else if (strcmp (interface, "weston_content_protection") == 0) {
+        wl_data.protection = wl_registry_bind (registry,
+                                               name,
+                                               &weston_content_protection_interface,
+                                               1);
+#endif /* COG_ENABLE_PROTECTED_CONTENT */
 #if HAVE_DEVICE_SCALING
     } else if (strcmp (interface, wl_output_interface.name) == 0) {
         struct wl_output* output = wl_registry_bind (registry,
@@ -1358,6 +1383,18 @@ on_svp_dmabuf_receiver_handle_dmabuf (void* data, struct wpe_svp_dmabuf_export* 
 
     uint64_t modifier = DRM_FORMAT_MOD_INVALID;
     struct zwp_linux_buffer_params_v1 *params = zwp_linux_dmabuf_v1_create_params (wl_data.dmabuf);
+
+#if COG_ENABLE_PROTECTED_CONTENT
+    if (wl_data.direct_display != NULL)
+        weston_direct_display_v1_enable (wl_data.direct_display, params);
+
+    if (wl_data.protection && !win_data.svp.protected_surface) {
+        win_data.svp.protected_surface = weston_content_protection_get_protection (wl_data.protection,
+                                                                                   win_data.svp.wl_surface);
+        weston_protected_surface_enforce (win_data.svp.protected_surface);
+    }
+#endif
+
     zwp_linux_buffer_params_v1_add (params, fd, 0, 0, stride, modifier >> 32, modifier & 0xffffffff);
 
     struct buffer* buffer = calloc(1, sizeof(struct buffer));
@@ -1442,6 +1479,13 @@ clear_wayland (void)
 
     if (wl_data.compositor != NULL)
         wl_compositor_destroy (wl_data.compositor);
+
+#if COG_ENABLE_PROTECTED_CONTENT
+    if (wl_data.protection != NULL)
+        weston_content_protection_destroy (wl_data.protection);
+    if (wl_data.direct_display != NULL)
+        weston_direct_display_v1_destroy (wl_data.direct_display);
+#endif
 
     wl_registry_destroy (wl_data.registry);
     wl_display_flush (wl_data.display);
@@ -1664,6 +1708,10 @@ destroy_window (void)
     g_clear_pointer (&win_data.xdg_surface, xdg_surface_destroy);
     g_clear_pointer (&win_data.shell_surface, wl_shell_surface_destroy);
     g_clear_pointer (&win_data.wl_surface, wl_surface_destroy);
+
+#if COG_ENABLE_PROTECTED_CONTENT
+    g_clear_pointer (&win_data.svp.protected_surface, weston_protected_surface_destroy);
+#endif
     g_clear_pointer (&win_data.svp.wl_subsurface, wl_subsurface_destroy);
     g_clear_pointer (&win_data.svp.wl_surface, wl_surface_destroy);
 }

@@ -58,6 +58,7 @@ option(COG_USE_WEBKITGTK "Use WebKitGTK+ instead of WPEWebKit" OFF)
 option(COG_PLATFORM_FDO "Build the FDO platform module" ON)
 option(COG_PLATFORM_DRM "Build the DRM platform module" OFF)
 option(COG_BUILD_PROGRAMS "Build and install programs as well" ON)
+option(COG_PROTECTED_CONTENT "Build direct display support for the FDO platform module" OFF)
 set(COG_APPID "" CACHE STRING "Default GApplication unique identifier")
 set(COG_HOME_URI "" CACHE STRING "Default home URI")
 
@@ -232,8 +233,42 @@ if (COG_PLATFORM_FDO AND NOT COG_USE_WEBKITGTK)
         ${WAYLAND_LDFLAGS}
         ${WAYLAND_EGL_LDFLAGS}
     )
+    set(COGPLATFORM_FDO_SOURCES
+        platform/cog-platform-fdo.c
+    )
 
-    add_library(cogplatform-fdo MODULE platform/cog-platform-fdo.c)
+    if (COG_PROTECTED_CONTENT)
+        file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/weston)
+        find_package(WaylandScanner REQUIRED)
+        add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/weston/weston-direct-display-client-protocol.h
+                   ${CMAKE_BINARY_DIR}/weston/weston-direct-display-protocol.c
+            DEPENDS ${CMAKE_SOURCE_DIR}/weston/weston-direct-display.xml
+            COMMAND ${WAYLAND_SCANNER} client-header < ${CMAKE_SOURCE_DIR}/weston/weston-direct-display.xml > ${CMAKE_BINARY_DIR}/weston/weston-direct-display-client-protocol.h
+            COMMAND ${WAYLAND_SCANNER} ${WAYLAND_SCANNER_CODE_ARG} < ${CMAKE_SOURCE_DIR}/weston/weston-direct-display.xml > ${CMAKE_BINARY_DIR}/weston/weston-direct-display-protocol.c
+            VERBATIM
+        )
+
+        add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/weston/weston-content-protection-client-protocol.h
+                   ${CMAKE_BINARY_DIR}/weston/weston-content-protection-protocol.c
+            DEPENDS ${CMAKE_SOURCE_DIR}/weston/weston-content-protection.xml
+            COMMAND ${WAYLAND_SCANNER} client-header < ${CMAKE_SOURCE_DIR}/weston/weston-content-protection.xml > ${CMAKE_BINARY_DIR}/weston/weston-content-protection-client-protocol.h
+            COMMAND ${WAYLAND_SCANNER} ${WAYLAND_SCANNER_CODE_ARG} < ${CMAKE_SOURCE_DIR}/weston/weston-content-protection.xml > ${CMAKE_BINARY_DIR}/weston/weston-content-protection-protocol.c
+            VERBATIM
+        )
+
+        list(APPEND COGPLATFORM_FDO_SOURCES
+            ${CMAKE_BINARY_DIR}/weston/weston-direct-display-protocol.c
+            ${CMAKE_BINARY_DIR}/weston/weston-content-protection-protocol.c
+        )
+        list(APPEND COGPLATFORM_FDO_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/weston)
+        add_definitions(-DCOG_ENABLE_PROTECTED_CONTENT=1)
+    else ()
+        add_definitions(-DCOG_ENABLE_PROTECTED_CONTENT=0)
+    endif ()
+
+    add_library(cogplatform-fdo MODULE ${COGPLATFORM_FDO_SOURCES})
     set_property(TARGET cogplatform-fdo PROPERTY C_STANDARD 99)
     target_include_directories(cogplatform-fdo PUBLIC wayland ${COGPLATFORM_FDO_INCLUDE_DIRS})
     target_link_libraries(cogplatform-fdo cogcore ${COGPLATFORM_FDO_LDFLAGS})
