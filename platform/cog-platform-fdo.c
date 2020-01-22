@@ -595,7 +595,7 @@ dispatch_axis_event ()
         wl_data.axis.time,
         wl_data.pointer.x * wl_data.current_output.scale,
         wl_data.pointer.y * wl_data.current_output.scale,
-        0, 0,
+        0, 0, 0,
     };
 
     if (wl_data.axis.x_delta) {
