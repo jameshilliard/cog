@@ -42,7 +42,7 @@
 
 #if defined(WPE_CHECK_VERSION)
 # define HAVE_DEVICE_SCALING WPE_CHECK_VERSION(1, 3, 0)
-# define HAVE_2D_AXIS_EVENT 0
+# define HAVE_2D_AXIS_EVENT WPE_CHECK_VERSION(1, 5, 0) && WEBKIT_CHECK_VERSION(2, 27, 4)
 #else
 # define HAVE_DEVICE_SCALING 0
 # define HAVE_2D_AXIS_EVENT 0
@@ -588,7 +588,16 @@ dispatch_axis_event ()
         return;
 
 #if HAVE_2D_AXIS_EVENT
-    // FIXME: todo
+    struct wpe_input_axis_2d_event event = { 0, };
+    event.base.type = wpe_input_axis_event_type_2d | wpe_input_axis_event_type_motion_smooth;
+    event.base.time = wl_data.axis.time;
+    event.base.x = wl_data.pointer.x * wl_data.current_output.scale;
+    event.base.y = wl_data.pointer.y * wl_data.current_output.scale;
+
+    event.x_axis = wl_fixed_to_double(wl_data.axis.x_delta) * wl_data.current_output.scale;
+    event.y_axis = -wl_fixed_to_double(wl_data.axis.y_delta) * wl_data.current_output.scale;
+
+    wpe_view_backend_dispatch_axis_event (wpe_view_data.backend, &event.base);
 #else
     struct wpe_input_axis_event event = {
         wpe_input_axis_event_type_motion,
