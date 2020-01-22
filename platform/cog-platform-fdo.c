@@ -40,10 +40,12 @@
 
 #define DEFAULT_ZOOM_STEP 0.1f
 
-#if defined(WPE_CHECK_VERSION) && WPE_CHECK_VERSION(1, 3, 0)
-# define HAVE_DEVICE_SCALING 1
+#if defined(WPE_CHECK_VERSION)
+# define HAVE_DEVICE_SCALING WPE_CHECK_VERSION(1, 3, 0)
+# define HAVE_2D_AXIS_EVENT 0
 #else
 # define HAVE_DEVICE_SCALING 0
+# define HAVE_2D_AXIS_EVENT 0
 #endif /* WPE_CHECK_VERSION */
 
 
@@ -86,6 +88,13 @@ static struct {
         uint32_t button;
         uint32_t state;
     } pointer;
+
+    struct {
+        bool has_delta;
+        uint32_t time;
+        wl_fixed_t x_delta;
+        wl_fixed_t y_delta;
+    } axis;
 
     struct {
         struct wl_keyboard *obj;
@@ -573,22 +582,65 @@ pointer_on_button (void* data,
 }
 
 static void
+dispatch_axis_event ()
+{
+    if (!wl_data.axis.has_delta)
+        return;
+
+#if HAVE_2D_AXIS_EVENT
+    // FIXME: todo
+#else
+    struct wpe_input_axis_event event = {
+        wpe_input_axis_event_type_motion,
+        wl_data.axis.time,
+        wl_data.pointer.x * wl_data.current_output.scale,
+        wl_data.pointer.y * wl_data.current_output.scale,
+        0, 0,
+    };
+
+    if (wl_data.axis.x_delta) {
+        event.axis = WL_POINTER_AXIS_HORIZONTAL_SCROLL;
+        event.value = wl_fixed_to_int (wl_data.axis.x_delta) > 0 ? -1 : 1;
+
+        wpe_view_backend_dispatch_axis_event (wpe_view_data.backend, &event);
+    }
+
+    if (wl_data.axis.y_delta) {
+        event.axis = WL_POINTER_AXIS_VERTICAL_SCROLL;
+        event.value = wl_fixed_to_int (wl_data.axis.y_delta) > 0 ? -1 : 1;
+
+        wpe_view_backend_dispatch_axis_event (wpe_view_data.backend, &event);
+    }
+#endif
+
+    wl_data.axis.has_delta = false;
+    wl_data.axis.time = 0;
+    wl_data.axis.x_delta = wl_data.axis.y_delta = 0;
+}
+
+static void
 pointer_on_axis (void* data,
                  struct wl_pointer *pointer,
                  uint32_t time,
                  uint32_t axis,
                  wl_fixed_t value)
 {
-    struct wpe_input_axis_event event = {
-        wpe_input_axis_event_type_motion,
-        time,
-        wl_data.pointer.x * wl_data.current_output.scale,
-        wl_data.pointer.y * wl_data.current_output.scale,
-        axis,
-        wl_fixed_to_int(value) > 0 ? -1 : 1,
-    };
+    if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL) {
+        wl_data.axis.has_delta = true;
+        wl_data.axis.time = time;
+        wl_data.axis.y_delta += value;
+    }
 
-    wpe_view_backend_dispatch_axis_event (wpe_view_data.backend, &event);
+    if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL) {
+        wl_data.axis.has_delta = true;
+        wl_data.axis.time = time;
+        wl_data.axis.x_delta += value;
+    }
+
+#if !WAYLAND_1_10_OR_GREATER
+    // No 'frame' event in this case, so dispatch immediately.
+    dispatch_axis_event ();
+#endif
 }
 
 #if WAYLAND_1_10_OR_GREATER
@@ -600,6 +652,8 @@ pointer_on_frame (void* data,
     /* @FIXME: buffer pointer events and handle them in frame. That's the
      * recommended usage of this interface.
      */
+
+    dispatch_axis_event();
 }
 
 static void
