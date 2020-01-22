@@ -600,7 +600,7 @@ dispatch_axis_event ()
 
     if (wl_data.axis.x_delta) {
         event.axis = WL_POINTER_AXIS_HORIZONTAL_SCROLL;
-        event.value = wl_fixed_to_int (wl_data.axis.x_delta) > 0 ? -1 : 1;
+        event.value = wl_fixed_to_int (wl_data.axis.x_delta) > 0 ? 1 : -1;
 
         wpe_view_backend_dispatch_axis_event (wpe_view_data.backend, &event);
     }
