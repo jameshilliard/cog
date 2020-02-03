@@ -219,7 +219,7 @@ if (COG_PLATFORM_FDO AND NOT COG_USE_WEBKITGTK)
         set(WAYLAND_1_10_OR_GREATER ON)
     endif ()
 
-    pkg_check_modules(COGPLATFORM_FDO_DEPS REQUIRED wpe-webkit-1.0>=2.24.0 wpebackend-fdo-1.0>=1.3.1 egl xkbcommon)
+    pkg_check_modules(COGPLATFORM_FDO_DEPS REQUIRED wpe-webkit-1.0>=2.24.0 wpebackend-fdo-1.0>=1.3.1 cairo egl xkbcommon)
     pkg_check_modules(WAYLAND_EGL wayland-egl)
 
     set(COGPLATFORM_FDO_INCLUDE_DIRS
@@ -237,7 +237,11 @@ if (COG_PLATFORM_FDO AND NOT COG_USE_WEBKITGTK)
         ${WAYLAND_LDFLAGS}
         ${WAYLAND_EGL_LDFLAGS}
     )
-    set(COGPLATFORM_FDO_SOURCES platform/cog-platform-fdo.c)
+    set(COGPLATFORM_FDO_SOURCES
+        platform/cog-platform-fdo.c
+        platform/cog-popup-menu-fdo.c
+        platform/os-compatibility.c
+    )
 
     if (COG_IM_API_SUPPORTED)
         list(APPEND COGPLATFORM_FDO_SOURCES
